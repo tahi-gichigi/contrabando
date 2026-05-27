@@ -11,6 +11,13 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  // Ping Better Stack at the start of the cron so the heartbeat timing tracks the
+  // schedule (within ~1s of :00:00) instead of drifting with pipeline duration.
+  // Pipeline failures are still surfaced via sendAlert below and inside run().
+  if (process.env.BETTERSTACK_HEARTBEAT_URL) {
+    fetch(process.env.BETTERSTACK_HEARTBEAT_URL).catch(() => {});
+  }
+
   try {
     const result = await run();
     return res.status(200).json({ ok: true, ...result });
