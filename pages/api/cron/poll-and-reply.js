@@ -2,7 +2,7 @@
 // Polls GBP for new unreplied reviews, generates and posts replies.
 // Secured with CRON_SECRET header.
 
-import { run } from '../../../lib/pipeline.js';
+import { run, pingHeartbeat } from '../../../lib/pipeline.js';
 import { sendAlert } from '../../../lib/notify.js';
 
 export default async function handler(req, res) {
@@ -11,12 +11,11 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  // Ping Better Stack at the start of the cron so the heartbeat timing tracks the
-  // schedule (within ~1s of :00:00) instead of drifting with pipeline duration.
-  // Pipeline failures are still surfaced via sendAlert below and inside run().
-  if (process.env.BETTERSTACK_HEARTBEAT_URL) {
-    fetch(process.env.BETTERSTACK_HEARTBEAT_URL).catch(() => {});
-  }
+  // Ping Better Stack at the start of the cron, and AWAIT it so the request
+  // actually flushes before the function returns. This proves the cron fired
+  // regardless of how the pipeline run turns out (a fast failure used to drop a
+  // fire-and-forget ping), and keeps the ping timing locked to the schedule.
+  await pingHeartbeat(process.env.BETTERSTACK_HEARTBEAT_URL);
 
   try {
     const result = await run();
